@@ -17,7 +17,9 @@
 # cloudbuild.yaml file. Each is triggered on a push to master for any file
 # changed in the directory containing that cloudbuild.yaml file.
 
-if [[ $# -lt 6 ]]
+set -eo pipefail
+
+if [[ $# -ne 6 ]]
 then
   echo "Usage: $0 <project> <bucket> <functionRegion> <keyRing> <region> <schedulerServiceAccountEmail>"
   exit 1
@@ -41,9 +43,7 @@ do
   triggerName=$(dirname ${config} | sed 's/\//_/g')
 
   # test to see if the deployment trigger already exists
-  gcloud beta builds triggers describe ${triggerName} \
-    --project=${project}
-  if [[ $? -eq 0 ]]
+  if gcloud beta builds triggers describe ${triggerName} --project=${project} &>/dev/null
   then
     # trigger already exists, skip
     continue
@@ -52,7 +52,7 @@ do
   echo "Syncing trigger for ${botName}"
 
   # create the trigger
-  echo gcloud beta builds trigger create github \
+  gcloud beta builds trigger create github \
     --project="${project}" \
     --repo-name="repo-automation-bots" \
     --repo-owner="googleapis" \
@@ -61,9 +61,9 @@ do
     --name="${triggerName}" \
     --branch-pattern="master" \
     --build-config="${config}" \
-    --substitutions="${substitutions}"
+    --substitutions="${substitutions},_DIRECTORY=${dirname}"
 
   # trigger the first deployment
-  echo gcloud beta builds trigger run ${triggerName} \
+  gcloud beta builds trigger run ${triggerName} \
     --project="${project}"
 done
