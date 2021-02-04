@@ -13,15 +13,11 @@
 // limitations under the License.
 
 import {Storage} from '@google-cloud/storage';
-/* eslint-disable-next-line node/no-extraneous-import */
-import {Probot, Context} from 'probot';
+// eslint-disable-next-line node/no-extraneous-import
+import {Application, Context} from 'probot';
 import {logger} from 'gcf-utils';
 import * as helper from './helper';
 import {DriftRepo, DriftApi, Label, Config} from './helper';
-import {Endpoints} from '@octokit/types';
-
-type IssueResponse = Endpoints['GET /repos/{owner}/{repo}/issues']['response'];
-type ConfigResponse = Endpoints['GET /repos/{owner}/{repo}/contents/{path}']['response'];
 
 // Default app configs if user didn't specify a .config
 const LABEL_PRODUCT_BY_DEFAULT = true;
@@ -34,10 +30,6 @@ const DEFAULT_CONFIGS = {
     pullrequest: false,
   },
 };
-
-interface File {
-  content: string | undefined;
-}
 
 import colorsData from './colors.json';
 
@@ -80,7 +72,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
   context: Context
 ) {
   const driftRepo = driftRepos.find(x => x.repo === `${owner}/${repo}`);
-  const res = await context.octokit.issues
+  const res = await context.github.issues
     .listLabelsOnIssue({
       owner,
       repo,
@@ -104,7 +96,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
 
   if (githubLabel) {
     try {
-      await context.octokit.issues.createLabel({
+      await context.github.issues.createLabel({
         owner,
         repo,
         name: githubLabel,
@@ -128,7 +120,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
           element.name !== autoDetectedLabel
       );
       if (!foundAPIName) {
-        await context.octokit.issues
+        await context.github.issues
           .addLabels({
             owner,
             repo,
@@ -142,7 +134,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
         wasNotAdded = false;
       }
       for (const dirtyLabel of cleanUpOtherLabels) {
-        await context.octokit.issues
+        await context.github.issues
           .removeLabel({
             owner,
             repo,
@@ -152,7 +144,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
           .catch(logger.error);
       }
     } else {
-      await context.octokit.issues
+      await context.github.issues
         .addLabels({
           owner,
           repo,
@@ -174,7 +166,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
   const isSampleIssue =
     repo.includes('samples') || issueTitle?.includes('sample');
   if (!foundSamplesTag && isSampleIssue) {
-    await context.octokit.issues
+    await context.github.issues
       .createLabel({
         owner,
         repo,
@@ -182,7 +174,7 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
         color: colorsData[colorNumber].color,
       })
       .catch(logger.error);
-    await context.octokit.issues
+    await context.github.issues
       .addLabels({
         owner,
         repo,
@@ -199,18 +191,14 @@ handler.addLabeltoRepoAndIssue = async function addLabeltoRepoAndIssue(
   return wasNotAdded;
 };
 
-function isFile(file: File | unknown): file is File {
-  return (file as File).content !== undefined;
-}
-
 /**
  * Main function, responds to label being added
  */
-export function handler(app: Probot) {
+export function handler(app: Application) {
   // Nightly cron that backfills and corrects api labels
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  app.on('schedule.repository' as '*', async context => {
-    const config: Config | null = await context.config(
+  app.on('schedule.repository' as any, async context => {
+    const config: Config = await context.config(
       'auto-label.yaml',
       DEFAULT_CONFIGS
     );
@@ -228,14 +216,14 @@ export function handler(app: Probot) {
       return;
     }
     //all the issues in the repository
-    const issues = context.octokit.issues.listForRepo.endpoint.merge({
+    const issues = context.github.issues.listForRepo.endpoint.merge({
       owner,
       repo,
     });
     let labelWasNotAddedCount = 0;
     //goes through issues in repository, adds labels as necessary
-    for await (const response of context.octokit.paginate.iterator(issues)) {
-      const issues = response.data as IssueResponse['data'];
+    for await (const response of context.github.paginate.iterator(issues)) {
+      const issues = response.data;
       for (const issue of issues) {
         const wasNotAdded = await handler.addLabeltoRepoAndIssue(
           owner,
@@ -321,12 +309,14 @@ export function handler(app: Probot) {
       return;
     }
 
-    const filesChanged = await context.octokit.pulls.listFiles({
+    const filesChanged = await context.github.pulls.listFiles({
       owner,
       repo,
       pull_number,
     });
-    const labels = context.payload.pull_request.labels;
+    const labels = context.payload.issue
+      ? context.payload.issue.labels
+      : context.payload.pull_request.labels;
 
     // If user has turned on path labels by configuring {path: {pullrequest: false, }}
     // By default, this feature is turned off
@@ -341,7 +331,7 @@ export function handler(app: Probot) {
         logger.info(
           `Path label added to PR #${pull_number} in ${owner}/${repo} is ${path_label}`
         );
-        await context.octokit.issues.addLabels({
+        await context.github.issues.addLabels({
           owner,
           repo,
           issue_number: pull_number,
@@ -365,7 +355,7 @@ export function handler(app: Probot) {
         logger.info(
           `Language label added to PR #${pull_number} in ${owner}/${repo} is ${language_label}`
         );
-        await context.octokit.issues.addLabels({
+        await context.github.issues.addLabels({
           owner,
           repo,
           issue_number: pull_number,
@@ -387,7 +377,7 @@ export function handler(app: Probot) {
       // Looks for a config file, breaks if user disabled product labels
       let response;
       try {
-        response = await context.octokit.repos.getContent({
+        response = await context.github.repos.getContent({
           owner,
           repo,
           path: '.github/auto-label.yaml',
@@ -396,23 +386,20 @@ export function handler(app: Probot) {
         e.message = `No auto-label.yaml found in repo upon installation: ${e.message}`;
         logger.info(e);
       }
-
       if (response && response.status === 200) {
-        const config_encoded = response.data as ConfigResponse['data'];
-        if (isFile(config_encoded)) {
-          const config = Buffer.from(config_encoded.content, 'base64')
-            .toString('binary')
-            .toLowerCase();
-          const disable_product_label = config
-            .split('\n')
-            .filter(line => line.match(/^product:( *)false/));
-          if (disable_product_label.length > 0) break;
-        }
+        const config_encoded = response.data.content;
+        const config = Buffer.from(config_encoded, 'base64')
+          .toString('binary')
+          .toLowerCase();
+        const disable_product_label = config
+          .split('\n')
+          .filter(line => line.match(/^product:( *)false/));
+        if (disable_product_label.length > 0) break;
       }
 
       // goes through issues in repository, adds labels as necessary
-      for await (const response of context.octokit.paginate.iterator(
-        context.octokit.issues.listForRepo,
+      for await (const response of context.github.paginate.iterator(
+        context.github.issues.listForRepo,
         {
           owner,
           repo,

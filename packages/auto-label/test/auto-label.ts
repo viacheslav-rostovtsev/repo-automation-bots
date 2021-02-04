@@ -26,7 +26,6 @@ import * as sinon from 'sinon';
 import {handler} from '../src/auto-label';
 import {autoDetectLabel, DriftRepo, DriftApi} from '../src/helper';
 import {logger} from 'gcf-utils';
-import {createProbotAuth} from 'octokit-auth-probot';
 nock.disableNetConnect();
 const sandbox = sinon.createSandbox();
 
@@ -38,9 +37,7 @@ const sandbox = sinon.createSandbox();
 import {Octokit} from '@octokit/rest';
 // eslint-disable-next-line node/no-extraneous-import
 import {config} from '@probot/octokit-plugin-config';
-const TestingOctokit = Octokit.plugin(config).defaults({
-  authStrategy: createProbotAuth,
-});
+const TestingOctokit = Octokit.plugin(config);
 
 const fixturesPath = resolve(__dirname, '../../test/fixtures');
 const driftRepos = JSON.parse(
