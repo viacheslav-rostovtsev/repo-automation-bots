@@ -15,7 +15,7 @@ if (!$workDir) {
     $workDir = New-TemporaryDirectory
 }
 
-Write-Host -ForegroundColor DarkYellow "Working in $workDir"
+Write-Host -ForegroundColor Blue "Working in $workDir"
 
 function CloneOrPull-Repo([string]$repo) {
     $name = $repo.split('/')[1]
@@ -25,6 +25,21 @@ function CloneOrPull-Repo([string]$repo) {
         gh repo clone $repo | Write-Host
     }
     return $name
+}
+
+function Migrate-Repo([string]$localPath) {
+    cat "$localPath/synth.py"
+    while ($true) {
+        $yn = Read-Host "Wanna migrate? (y/n)"
+        if ("y" -eq $yn) {
+            break;
+        } elseif ("n" -eq $yn) {
+            return;
+        }
+    }
+    $dv = Read-Host "What's the default version?"
+    git -C $localPath checkout -b owl-bot
+    
 }
 
 pushd
@@ -43,9 +58,10 @@ try {
         $name = CloneOrPull-Repo $repo
         $owlBotPath = "$name/.github/.OwlBot.yaml"
         if (Test-Path $owlBotPath) {
-            Write-Host -ForegroundColor DarkYellow "Skipping $name;  Found $owlBotPath."
+            Write-Host -ForegroundColor Blue "Skipping $name;  Found $owlBotPath."
         } else {
             Write-Host -ForegroundColor Blue "Migrating $name..."
+            Migrate-Repo $name
         }
     }
 
