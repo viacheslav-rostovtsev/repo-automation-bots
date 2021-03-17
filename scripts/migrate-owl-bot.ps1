@@ -28,6 +28,7 @@ function CloneOrPull-Repo([string]$repo) {
 }
 
 function Migrate-Repo([string]$localPath) {
+    # Ask the user to look at sytnh.py and provide the details we need.
     cat "$localPath/synth.py"
     while ($true) {
         $yn = Read-Host "Wanna migrate? (y/n)"
@@ -38,8 +39,63 @@ function Migrate-Repo([string]$localPath) {
         }
     }
     $dv = Read-Host "What's the default version?"
+    $apiName = Read-Host "What's the API name?"
+
+    # Create a branch
     git -C $localPath checkout -b owl-bot
-    
+
+    # Update .repo-metadata.json with the default version.
+    $metadataPath = "$localPath/.repo-metadata.json"
+    $metadata = Get-Content $metadataPath | ConvertFrom-Json -AsHashTable
+    $metadata['default_version'] = $dv
+    $metadata | ConvertTo-Json | Out-File $metadataPath -Encoding UTF8
+
+    # Write Owlbot config files.
+    $yamlPath = "$localPath/.github/.OwlBot.yaml"
+    $lockPath = "$localPath/.github/.OwlBot.lock.yaml"
+    $yaml = "# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the `"License`");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an `"AS IS`" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+docker:
+  image: gcr.io/repo-automation-bots/owlbot-nodejs:latest
+
+deep-remove-regex:
+  - /owl-bot-staging
+
+deep-copy-regex:
+  - source: /google/cloud/${apiName}/(.*)/.*-nodejs/(.*)
+    dest: /owl-bot-staging/`$1/`$2
+"
+    $yaml | Out-File $yamlPath -Encoding UTF8
+
+    $lock = "docker:
+  digest: sha256:b317576c0e66d348ab6c1ae50dc43405df37f957b58433c988c1e9ca257ba3d4
+  image: gcr.io/repo-automation-bots/owlbot-nodejs:latest  
+"
+    $lock | Out-File $lockPath -Encoding UTF8
+
+    # Remove obsolete files.
+    Remove-Item "${localPath}/synth.py"
+    Remove-Item "${localPath}/synth.metadata"
+
+    # Commit changes
+    git -C $localPath add -A
+    git -C $localPath commit -m "chore: migrate to owl bot"
+
+    # Run copy-code to simulate a copy from googleapis-gen.
+    exit 0
+
+
 }
 
 pushd
