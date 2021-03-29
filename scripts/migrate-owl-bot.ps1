@@ -27,7 +27,7 @@ function CloneOrPull-Repo([string]$repo) {
     return $name
 }
 
-function Migrate-Repo([string]$localPath) {
+function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     # Ask the user to look at sytnh.py and provide the details we need.
     cat "$localPath/synth.py"
     while ($true) {
@@ -93,9 +93,14 @@ deep-copy-regex:
     git -C $localPath commit -m "chore: migrate to owl bot"
 
     # Run copy-code to simulate a copy from googleapis-gen.
+    docker run  --user "$(id -u):$(id -g)" --rm -v "$localPath:/repo" -w /repo `
+        gcr.io/repo-automation-bots/owlbot-cli copy-code
+
+    # And run the post processor.
+    docker run  --user "$(id -u):$(id -g)" --rm -v "$localPath:/repo" -w /repo `
+        gcr.io/repo-automation-bots/owlbot-nodejs:latest 
+
     exit 0
-
-
 }
 
 pushd
