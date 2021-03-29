@@ -96,21 +96,23 @@ describe('policy', () => {
   });
 
   it('should check for renovate', async () => {
-    const file = 'renovate.json';
+    const files = ['renovate.json', 'renovate.json5'];
     const repo = {
       full_name: 'googleapis/nodejs-storage',
       default_branch: 'main',
     } as GitHubRepo;
-    const fileUrl = `/${repo.full_name}/${repo.default_branch}/${file}`;
-    const magicUrl = `/${repo.full_name}/${repo.default_branch}/.github/${file}`;
-    const scope = nock(githubRawBase)
-      .get(fileUrl)
-      .reply(200)
-      .get(magicUrl)
-      .reply(404);
+    const scopes = files.map(file => {
+      const fileUrl = `/${repo.full_name}/${repo.default_branch}/${file}`;
+      const magicUrl = `/${repo.full_name}/${repo.default_branch}/.github/${file}`;
+      return nock(githubRawBase)
+        .get(fileUrl)
+        .reply(200)
+        .get(magicUrl)
+        .reply(404);
+    });
     const hasRenovate = await policy.hasRenovate(repo);
     assert.ok(hasRenovate);
-    scope.done();
+    scopes.forEach(x => x.done());
   });
 
   it('should check for CODEOWNERS', async () => {
@@ -192,7 +194,6 @@ describe('policy', () => {
     } as GitHubRepo;
     const res = {
       required_pull_request_reviews: {
-        required_approving_review_count: 1,
         require_code_owner_reviews: true,
       },
       required_status_checks: {
@@ -224,26 +225,6 @@ describe('policy', () => {
       default_branch: 'main',
     } as GitHubRepo;
     const res = {
-      required_status_checks: {
-        contexts: ['check1'],
-      },
-    };
-    const url = `/repos/${repo.full_name}/branches/${repo.default_branch}/protection`;
-    const scope = nock(githubHost).get(url).reply(200, res);
-    const good = await policy.hasBranchProtection(repo);
-    assert.ok(!good);
-    scope.done();
-  });
-
-  it('should fail branch protection on missing required reviews', async () => {
-    const repo = {
-      full_name: 'googleapis/nodejs-storage',
-      default_branch: 'main',
-    } as GitHubRepo;
-    const res = {
-      required_pull_request_reviews: {
-        require_code_owner_reviews: true,
-      },
       required_status_checks: {
         contexts: ['check1'],
       },
