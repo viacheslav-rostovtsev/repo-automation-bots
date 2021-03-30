@@ -105,9 +105,16 @@ begin-after-commit-hash: ${sourceCommitHash}
         --source-repo-commit-hash $sourceCommitHash
 
     # And run the post processor.
-    docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-        gcr.io/repo-automation-bots/owlbot-nodejs:latest 
-
+    # docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+    #     gcr.io/repo-automation-bots/owlbot-nodejs:latest
+    pushd .
+    try {
+        cd $localPath
+        python -m synthtool.languages.python
+    } finally {
+        popd
+    }
+    echo "${localPath} is ready."
     exit 0
 }
 
