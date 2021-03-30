@@ -24,7 +24,7 @@ function CloneOrPull-Repo([string]$repo) {
     } else {
         gh repo clone $repo | Write-Host
     }
-    return (realpath $name)
+    return (Resolve-Path $name)
 }
 
 function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
@@ -39,9 +39,10 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
         }
     }
     $dv = Read-Host "What's the default version?"
-    $apiName = Read-Host "What's the API path in googleapis-gen?"
+    $apiPath = Read-Host "What's the API path in googleapis-gen?"
 
     $sourceCommitHash = git -C $sourceRepoPath log -1 --format=%H
+    echo $sourceCommitHash
 
     # Create a branch
     git -C $localPath checkout -b owl-bot
@@ -99,7 +100,7 @@ begin-after-commit-hash: ${sourceCommitHash}
     # Run copy-code to simulate a copy from googleapis-gen.
     docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
         -v "${sourceRepoPath}:/source" `
-        gcr.io/repo-automation-bots/owlbot-cli copy-code -- `
+        gcr.io/repo-automation-bots/owlbot-cli copy-code `
         --source-repo /source `
         --source-repo-commit-hash $sourceCommitHash
 
@@ -123,13 +124,13 @@ try {
     $repos = $matchInfos.matches.value
 
     foreach ($repo in $repos) {
-        $name = CloneOrPull-Repo $repo $sourceRepoPath
+        $name = CloneOrPull-Repo $repo
         $owlBotPath = "$name/.github/.OwlBot.yaml"
         if (Test-Path $owlBotPath) {
             Write-Host -ForegroundColor Blue "Skipping $name;  Found $owlBotPath."
         } else {
             Write-Host -ForegroundColor Blue "Migrating $name..."
-            Migrate-Repo $name
+            Migrate-Repo $name $sourceRepoPath
         }
     }
 
