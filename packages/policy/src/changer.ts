@@ -20,22 +20,33 @@ import {PolicyResult, GitHubRepo} from './policy';
 
 export const cocUrl =
   'https://raw.githubusercontent.com/googleapis/.github/master/CODE_OF_CONDUCT.md';
+export const securityUrl =
+  'https://raw.githubusercontent.com/googleapis/.github/master/SECURITY.md';
 
-let cocContents: string;
+export const getCoC = cachingFileGetter(cocUrl);
+export const getSecurity = cachingFileGetter(securityUrl);
 
 /**
- * Fetch the code of conduct from googleapis/.github.  Cache it.
- * @returns Promise with the text of our template Code of Conduct
+ * Returns a function that gets the contents of a file.
+ * The file is fetched once and cached for the lifetime of the program.
+ *
+ * @param path The path to the file inside the googleapis/.github repository.
+ * @returns a function that gets the contents of the file at the given URL.
  */
-export async function getCoC() {
-  if (!cocContents) {
+function cachingFileGetter(url: string) {
+  let contents: string;
+  return async function () {
+    if (contents) {
+      return contents;
+    }
+
     const res = await request<string>({
-      url: cocUrl,
+      url: url,
       responseType: 'text',
     });
-    cocContents = res.data;
-  }
-  return cocContents;
+    contents = res.data;
+    return contents;
+  };
 }
 
 /**
@@ -76,8 +87,48 @@ export async function addCodeOfConduct(repo: GitHubRepo, octokit: Octokit) {
     upstreamOwner: owner,
     upstreamRepo: name,
     fork: false,
+    branch: `policy-bot-${uuid()}`,
+  });
+}
+
+/**
+ * Submit a pull request to the target repository to add a SECURITY.md.
+ * @param repo Repository name - ex: "repo-automation-bots"
+ * @param octokit Pre-authenticated octokit instance
+ */
+export async function addSecurityPolicy(repo: GitHubRepo, octokit: Octokit) {
+  // first, make sure there's no open PR for this
+  const title = 'chore: add SECURITY.md';
+  const prs = await octokit.search.issuesAndPullRequests({
+    q: `repo:${repo.full_name} "${title}" in:title is:open`,
+  });
+  if (prs.data.total_count > 0) {
+    return;
+  }
+
+  // fetch the SECURITY.md from `googleapis/.github`
+  const content = await getSecurity();
+
+  // submit the PR
+  const changes: Changes = new Map([
+    [
+      'SECURITY.md',
+      {
+        content,
+        mode: '100644',
+      },
+    ],
+  ]);
+
+  const [owner, name] = repo.full_name.split('/');
+  await createPullRequest(octokit, changes, {
+    title,
+    message: title,
+    description: 'add a security policy',
+    upstreamOwner: owner,
+    upstreamRepo: name,
+    fork: false,
     primary: repo.default_branch,
-    retry: 0,
     branch: `policy-bot-${uuid()}`,
   });
 }
@@ -95,5 +146,8 @@ export async function submitFixes(
 ) {
   if (!result.hasCodeOfConduct) {
     await addCodeOfConduct(repo, octokit);
+  }
+  if (!result.hasSecurityPolicy) {
+    await addSecurityPolicy(repo, octokit);
   }
 }
