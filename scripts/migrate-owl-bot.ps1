@@ -24,7 +24,7 @@ function CloneOrPull-Repo([string]$repo) {
     } else {
         gh repo clone $repo | Write-Host
     }
-    return $name
+    return (realpath $name)
 }
 
 function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
@@ -99,7 +99,8 @@ begin-after-commit-hash: ${sourceCommitHash}
     # Run copy-code to simulate a copy from googleapis-gen.
     docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
         -v "${sourceRepoPath}:/source" `
-        gcr.io/repo-automation-bots/owlbot-cli copy-code --source-repo /source `
+        gcr.io/repo-automation-bots/owlbot-cli copy-code -- `
+        --source-repo /source `
         --source-repo-commit-hash $sourceCommitHash
 
     # And run the post processor.
