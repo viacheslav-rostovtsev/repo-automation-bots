@@ -76,7 +76,7 @@ deep-remove-regex:
   - /owl-bot-staging
 
 deep-copy-regex:
-  - source: ${apiPath}/(.*)/.*-nodejs/(.*)
+  - source: /${apiPath}/(.*)/.*-nodejs/(.*)
     dest: /owl-bot-staging/`$1/`$2
 
 begin-after-commit-hash: ${sourceCommitHash}
