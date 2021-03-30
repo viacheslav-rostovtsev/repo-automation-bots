@@ -104,16 +104,12 @@ begin-after-commit-hash: ${sourceCommitHash}
         --source-repo /source `
         --source-repo-commit-hash $sourceCommitHash
 
+    git -C $localPath add -A
+    git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
+
     # And run the post processor.
-    # docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-    #     gcr.io/repo-automation-bots/owlbot-nodejs:latest
-    pushd .
-    try {
-        cd $localPath
-        python -m synthtool.languages.python
-    } finally {
-        popd
-    }
+    docker run --rm -v "${localPath}:/repo" -w /repo `
+        gcr.io/repo-automation-bots/owlbot-nodejs:latest
     echo "${localPath} is ready."
     exit 0
 }
