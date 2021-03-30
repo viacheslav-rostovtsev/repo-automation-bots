@@ -39,7 +39,9 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
         }
     }
     $dv = Read-Host "What's the default version?"
-    $apiName = Read-Host "What's the API name?"
+    $apiName = Read-Host "What's the API path in googleapis-gen?"
+
+    $sourceCommitHash = git -C $sourceRepoPath log -1 --format=%H
 
     # Create a branch
     git -C $localPath checkout -b owl-bot
@@ -73,8 +75,10 @@ deep-remove-regex:
   - /owl-bot-staging
 
 deep-copy-regex:
-  - source: /google/cloud/${apiName}/(.*)/.*-nodejs/(.*)
+  - source: ${apiPath}/(.*)/.*-nodejs/(.*)
     dest: /owl-bot-staging/`$1/`$2
+
+begin-after-commit-hash: ${sourceCommitHash}
 "
     $yaml | Out-File $yamlPath -Encoding UTF8
 
@@ -93,11 +97,13 @@ deep-copy-regex:
     git -C $localPath commit -m "chore: migrate to owl bot"
 
     # Run copy-code to simulate a copy from googleapis-gen.
-    docker run  --user "$(id -u):$(id -g)" --rm -v "$localPath:/repo" -w /repo `
-        gcr.io/repo-automation-bots/owlbot-cli copy-code
+    docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+        -v "${sourceRepoPath}:/source" `
+        gcr.io/repo-automation-bots/owlbot-cli copy-code --source-repo /source `
+        --source-repo-commit-hash $sourceCommitHash
 
     # And run the post processor.
-    docker run  --user "$(id -u):$(id -g)" --rm -v "$localPath:/repo" -w /repo `
+    docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
         gcr.io/repo-automation-bots/owlbot-nodejs:latest 
 
     exit 0
@@ -107,7 +113,7 @@ pushd
 try {
     # Clone googleapis-gen and get its most recent commit hash.
     cd $workDir
-    CloneOrPull-Repo googleapis/googleapis-gen
+    $sourceRepoPath = CloneOrPull-Repo googleapis/googleapis-gen
     $currentHash = git -C googleapis-gen log -1 --format=%H
 
     # Get the list of repos from github.
@@ -116,7 +122,7 @@ try {
     $repos = $matchInfos.matches.value
 
     foreach ($repo in $repos) {
-        $name = CloneOrPull-Repo $repo
+        $name = CloneOrPull-Repo $repo $sourceRepoPath
         $owlBotPath = "$name/.github/.OwlBot.yaml"
         if (Test-Path $owlBotPath) {
             Write-Host -ForegroundColor Blue "Skipping $name;  Found $owlBotPath."
