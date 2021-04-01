@@ -74,7 +74,7 @@ function Get-SourceCommitHash([string]$localPath, [string]$sourceRepoPath) {
         }
     } else {
         # No clues in synth.metadata.  
-        return (git -C $sourceRepoPath log -1 --format=%H)
+        return (git -C $sourceRepoPath log -1 --format=%H master)
     }
 }
 
@@ -170,11 +170,25 @@ begin-after-commit-hash: ${sourceCommitHash}
                 # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
                 docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
                     gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
-                echo "${localPath} is ready for you to inspect and create a pull request."
-                if ("y" -eq (Query-Yn "Ready to move on to the next repo?")) {
-                    $cleanExit = $true
+                echo "${localPath} is ready for you to inspect."
+                $choice = Query-Options "Should I `ncreate a (p)ull request`n(r)etry this repo`n(s)kip to the next repo`n" 'p','r','s'
+                if ('p' -eq $choice) {
+                    pushd .
+                    try {
+                        cd $localPath
+                        git push -f origin owl-bot
+                        $repoName = Split-Path -Leaf $localPath
+                        echo "Create a pull request from here: https://github.com/googleapis/${repoName}/tree/owl-bot"
+                        Pause
+                        $cleanExit = $true
+                        return
+                    } finally {
+                        popd
+                    }
+                } elseif ('s' -eq $choice) {
+                    Rollback
                     return
-                } else {
+                } else {  # Retry
                     Rollback
                 }
             } else {
