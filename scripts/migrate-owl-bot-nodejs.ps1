@@ -31,12 +31,18 @@ function CloneOrPull-Repo([string]$repo) {
 
 # Ask the user a yes or no question and return 'y' or 'n'.
 function Query-Yn([string]$prompt) {
+    return (Query-Options $prompt 'y','n')
+}
+
+# Ask the user to choose between a list of options.
+function Query-Options([string]$prompt, $options) {
+    $optionText = $options -join '/'
     while ($true) {
-        $yn = Read-Host "${prompt} (y/n)"
-        if ('y' -eq $yn) {
-            return $yn
-        } elseif ('n' -eq $yn) {
-            return $yn
+        $choice = Read-Host "${prompt} (${optionText})"
+        foreach ($option in $options) {
+            if ($choice -eq $option) {
+                return $option
+            }
         }
     }
 }
