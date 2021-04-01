@@ -32,7 +32,7 @@ function Query-Yn([string]$prompt) {
         $yn = Read-Host "${prompt} (y/n)"
         if ('y' -eq $yn) {
             return $yn
-        } else if ('n' -eq $yn) {
+        } elseif ('n' -eq $yn) {
             return $yn
         }
     }
