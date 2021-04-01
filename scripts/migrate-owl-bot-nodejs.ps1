@@ -95,47 +95,58 @@ begin-after-commit-hash: ${sourceCommitHash}
 "
     $lock | Out-File $lockPath -Encoding UTF8
 
-    # Remove obsolete files.
-    Remove-Item "${localPath}/synth.metadata"
-    while ($true) {
-        echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
-        Pause
+    $cleanExit = $false
+    try {
 
-        # Commit changes
-        git -C $localPath add -A
-        git -C $localPath commit -m "chore: migrate to owl bot"
+        # Remove obsolete files.
+        Remove-Item "${localPath}/synth.metadata"
+        while ($true) {
+            echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
+            Pause
 
-        echo "Copying code from googleapis-gen..."
-        # Run copy-code to simulate a copy from googleapis-gen.
-        docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-            -v "${sourceRepoPath}:/source" `
-            gcr.io/repo-automation-bots/owlbot-cli copy-code `
-            --source-repo /source `
-            --source-repo-commit-hash $sourceCommitHash
+            # Commit changes
+            git -C $localPath add -A
+            git -C $localPath commit -m "chore: migrate to owl bot"
 
-        git -C $localPath add -A
-        git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
+            echo "Copying code from googleapis-gen..."
+            # Run copy-code to simulate a copy from googleapis-gen.
+            docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+                -v "${sourceRepoPath}:/source" `
+                gcr.io/repo-automation-bots/owlbot-cli copy-code `
+                --source-repo /source `
+                --source-repo-commit-hash $sourceCommitHash
 
-        function Rollback {
-            echo "Trying again..."
-            git -C $localPath reset --hard HEAD~1
-            git -C $localPath reset --soft HEAD~1        
-        }
+            git -C $localPath add -A
+            git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
 
-        if ("y" -eq (Query-Yn "Do the copied files look good?")) {
-            # And run the post processor.
-            # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
-            docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-                gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
-            echo "${localPath} is ready for you to inspect and create a pull request."
-            if ("y" -eq (Query-Yn "Ready to move on to the next repo?")) {
-                return
+            function Rollback {
+                echo "Trying again..."
+                git -C $localPath reset --hard HEAD~1
+                git -C $localPath reset --soft HEAD~1        
+            }
+
+            if ("y" -eq (Query-Yn "Do the copied files look good?")) {
+                # And run the post processor.
+                # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
+                docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+                    gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
+                echo "${localPath} is ready for you to inspect and create a pull request."
+                if ("y" -eq (Query-Yn "Ready to move on to the next repo?")) {
+                    $cleanExit = $true
+                    return
+                } else {
+                    Rollback
+                }
             } else {
                 Rollback
             }
-        } else {
-            Rollback
         }
+    } finally {
+        if (-not $cleanExit) {
+            # Remove these yaml files so we'll start again with this repo
+            Remove-Item $yamlPath,$lockPath
+        }
+
     }
 }
 
