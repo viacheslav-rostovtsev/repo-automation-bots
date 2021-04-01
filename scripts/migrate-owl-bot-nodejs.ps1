@@ -161,7 +161,7 @@ begin-after-commit-hash: ${sourceCommitHash}
 
             function Rollback {
                 echo "Trying again..."
-                git -C $localPath reset --hard HEAD~1
+                git -C $localPath reset --hard HEAD~2
                 git -C $localPath reset --soft HEAD~1        
             }
 
@@ -170,8 +170,11 @@ begin-after-commit-hash: ${sourceCommitHash}
                 # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
                 docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
                     gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
+                git -C $localPath add -A
+                git -C $localPath commit -m "chore: run the post processor"
+
                 echo "${localPath} is ready for you to inspect."
-                $choice = Query-Options "Should I `ncreate a (p)ull request`n(r)etry this repo`n(s)kip to the next repo`n" 'p','r','s'
+                $choice = Query-Options "Should I `n(p)ush to origin`n(r)etry this repo`n(s)kip to the next repo`n" 'p','r','s'
                 if ('p' -eq $choice) {
                     pushd .
                     try {
