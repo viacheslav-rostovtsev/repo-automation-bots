@@ -142,7 +142,7 @@ begin-after-commit-hash: ${sourceCommitHash}
         Remove-Item "${localPath}/synth.metadata"
         while ($true) {
             echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
-            Pause
+            code -n -w $localPath
 
             # Commit changes
             git -C $localPath add -A
