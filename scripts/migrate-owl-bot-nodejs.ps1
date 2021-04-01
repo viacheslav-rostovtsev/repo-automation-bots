@@ -53,6 +53,25 @@ function Get-GoogleapisCommitHashFromSynthMetadata($metadataPath) {
     }
 }
 
+# Looks in synth.metadata and computes the commit hash from googleapis-gen.
+function Get-SourceCommitHash([string]$localPath, [string]$sourceRepoPath) {
+    $metadataPath = Join-Path $localPath synth.metadata
+    $commitHash = Get-GoogleapisCommitHashFromSynthMetadata $metadataPath
+    if ($commitHash) {
+        # Does there exist a corresponding tag in googleapis-gen?
+        $tag = git -C $sourceRepoPath tag --list "googleapis-${commitHash}"
+        if ($tag) {
+            return (git -C $sourceRepoPath log -1 --format=%H "googleapis-${commitHash}")
+        } else {
+            # The commit hash in synth.metadata must be very old.
+            return (git -C $sourceRepoPath log --format=%H | Select-Object -Last 1)
+        }
+    } else {
+        # No clues in synth.metadata.  
+        return (git -C $sourceRepoPath log -1 --format=%H)
+    }
+}
+
 function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     # Ask the user to look at sytnh.py and provide the details we need.
     cat "$localPath/synth.py"
@@ -62,7 +81,7 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     $dv = Read-Host "What's the default version?"
     $apiPath = Read-Host "What's the API path in googleapis-gen?"
 
-    $sourceCommitHash = git -C $sourceRepoPath log -1 --format=%H
+    $sourceCommitHash = Get-SourceCommitHash $localPath $sourceRepoPath
     echo $sourceCommitHash
 
     # Create a branch
