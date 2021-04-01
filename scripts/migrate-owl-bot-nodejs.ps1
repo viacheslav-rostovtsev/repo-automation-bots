@@ -27,16 +27,22 @@ function CloneOrPull-Repo([string]$repo) {
     return (Resolve-Path $name)
 }
 
+function Query-Yn([string]$prompt) {
+    while ($true) {
+        $yn = Read-Host "${prompt} (y/n)"
+        if ('y' -eq $yn) {
+            return $yn
+        } else if ('n' -eq $yn) {
+            return $yn
+        }
+    }
+}
+
 function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     # Ask the user to look at sytnh.py and provide the details we need.
     cat "$localPath/synth.py"
-    while ($true) {
-        $yn = Read-Host "Wanna migrate? (y/n)"
-        if ("y" -eq $yn) {
-            break;
-        } elseif ("n" -eq $yn) {
-            return;
-        }
+    if ('n' -eq (Query-Yn "Wanna migrate?")) {
+        return
     }
     $dv = Read-Host "What's the default version?"
     $apiPath = Read-Host "What's the API path in googleapis-gen?"
@@ -90,28 +96,47 @@ begin-after-commit-hash: ${sourceCommitHash}
     $lock | Out-File $lockPath -Encoding UTF8
 
     # Remove obsolete files.
-    Remove-Item "${localPath}/synth.py"
     Remove-Item "${localPath}/synth.metadata"
+    while ($true) {
+        echo "Edit or remove ${yamlPath} and ${localPath}/synth.py before I commit changes."
+        Pause
 
-    # Commit changes
-    git -C $localPath add -A
-    git -C $localPath commit -m "chore: migrate to owl bot"
+        # Commit changes
+        git -C $localPath add -A
+        git -C $localPath commit -m "chore: migrate to owl bot"
 
-    # Run copy-code to simulate a copy from googleapis-gen.
-    docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-        -v "${sourceRepoPath}:/source" `
-        gcr.io/repo-automation-bots/owlbot-cli copy-code `
-        --source-repo /source `
-        --source-repo-commit-hash $sourceCommitHash
+        echo "Copying code from googleapis-gen..."
+        # Run copy-code to simulate a copy from googleapis-gen.
+        docker run  --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+            -v "${sourceRepoPath}:/source" `
+            gcr.io/repo-automation-bots/owlbot-cli copy-code `
+            --source-repo /source `
+            --source-repo-commit-hash $sourceCommitHash
 
-    git -C $localPath add -A
-    git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
+        git -C $localPath add -A
+        git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
 
-    # And run the post processor.
-    docker run --rm -v "${localPath}:/repo" -w /repo `
-        gcr.io/repo-automation-bots/owlbot-nodejs:latest
-    echo "${localPath} is ready."
-    exit 0
+        function Rollback {
+            echo "Trying again..."
+            git -C $localPath reset --hard HEAD~1
+            git -C $localPath reset --soft HEAD~1        
+        }
+
+        if ("y" -eq (Query-Yn "Do the copied files look good?")) {
+            # And run the post processor.
+            # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
+            docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+                gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
+            echo "${localPath} is ready for you to inspect and create a pull request."
+            if ("y" -eq (Query-Yn "Does it look good?")) {
+                return
+            } else {
+                Rollback
+            }
+        } else {
+            Rollback
+        }
+    }
 }
 
 pushd
