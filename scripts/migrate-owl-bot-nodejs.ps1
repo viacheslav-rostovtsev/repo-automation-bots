@@ -98,7 +98,7 @@ begin-after-commit-hash: ${sourceCommitHash}
     # Remove obsolete files.
     Remove-Item "${localPath}/synth.metadata"
     while ($true) {
-        echo "Edit or remove ${yamlPath} and ${localPath}/synth.py before I commit changes."
+        echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
         Pause
 
         # Commit changes
@@ -128,7 +128,7 @@ begin-after-commit-hash: ${sourceCommitHash}
             docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
                 gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
             echo "${localPath} is ready for you to inspect and create a pull request."
-            if ("y" -eq (Query-Yn "Does it look good?")) {
+            if ("y" -eq (Query-Yn "Ready to move on to the next repo?")) {
                 return
             } else {
                 Rollback
