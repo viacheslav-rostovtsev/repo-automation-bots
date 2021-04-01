@@ -17,6 +17,8 @@ if (!$workDir) {
 
 Write-Host -ForegroundColor Blue "Working in $workDir"
 
+# If the repo already exists in the temporary directory, just run "git pull".
+# Otherwise, clone it into the temporary directory.
 function CloneOrPull-Repo([string]$repo) {
     $name = $repo.split('/')[1]
     if (Test-Path $name) {
@@ -27,6 +29,7 @@ function CloneOrPull-Repo([string]$repo) {
     return (Resolve-Path $name)
 }
 
+# Ask the user a yes or no question and return 'y' or 'n'.
 function Query-Yn([string]$prompt) {
     while ($true) {
         $yn = Read-Host "${prompt} (y/n)"
@@ -34,6 +37,18 @@ function Query-Yn([string]$prompt) {
             return $yn
         } elseif ('n' -eq $yn) {
             return $yn
+        }
+    }
+}
+
+# Inspects synth.metadata and returns the commit hash for googleapis/googleapis.
+function Get-GoogleapisCommitHashFromSynthMetadata($metadataPath) {
+    if (Test-Path $metadataPath) {
+        $metadata = Get-Content $metadataPath | ConvertFrom-Json -AsHashTable
+        foreach ($source in $metadata["sources"]) {
+            if ($source["git"]["name"] -eq "googleapis") {
+                return $source["git"]["sha"]
+            }
         }
     }
 }
