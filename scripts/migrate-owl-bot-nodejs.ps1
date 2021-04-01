@@ -144,9 +144,12 @@ begin-after-commit-hash: ${sourceCommitHash}
             echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
             code -n -w $localPath
 
+            $commitCount = 0
+
             # Commit changes
             git -C $localPath add -A
             git -C $localPath commit -m "chore: migrate to owl bot"
+            $commitCount += 1
 
             echo "Copying code from googleapis-gen..."
             # Run copy-code to simulate a copy from googleapis-gen.
@@ -158,10 +161,11 @@ begin-after-commit-hash: ${sourceCommitHash}
 
             git -C $localPath add -A
             git -C $localpath commit -m "chore: copy files from googleapis-gen ${sourceCommitHash}"
+            $commitCount += 1
 
             function Rollback {
                 echo "Trying again..."
-                git -C $localPath reset --hard HEAD~2
+                git -C $localPath reset --hard "HEAD~$($commitCount - 1)"
                 git -C $localPath reset --soft HEAD~1        
             }
 
@@ -172,22 +176,23 @@ begin-after-commit-hash: ${sourceCommitHash}
                     gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
                 git -C $localPath add -A
                 git -C $localPath commit -m "chore: run the post processor"
+                $commitCount += 1
 
-                echo "${localPath} is ready for you to inspect."
-                $choice = Query-Options "Should I `n(p)ush to origin`n(r)etry this repo`n(s)kip to the next repo`n" 'p','r','s'
-                if ('p' -eq $choice) {
-                    pushd .
-                    try {
-                        cd $localPath
-                        git push -f origin owl-bot
-                        $repoName = Split-Path -Leaf $localPath
-                        echo "Create a pull request from here: https://github.com/googleapis/${repoName}/tree/owl-bot"
-                        Pause
-                        $cleanExit = $true
-                        return
-                    } finally {
-                        popd
-                    }
+                # Push the result to github and ask the user to look at it.
+                pushd .
+                try {
+                    cd $localPath
+                    git push -f origin owl-bot
+                    $repoName = Split-Path -Leaf $localPath
+                    echo "Create a pull request from here: https://github.com/googleapis/${repoName}/tree/owl-bot"
+                } finally {
+                    popd
+                }
+
+                $choice = Query-Options "Should I`n(m)ark this repo as complete`n(r)etry this repo`n(s)kip to the next repo`n" 'm','r','s'
+                if ('m' -eq $choice) {
+                    $cleanExit = $true
+                    return
                 } elseif ('s' -eq $choice) {
                     Rollback
                     return
