@@ -169,37 +169,33 @@ begin-after-commit-hash: ${sourceCommitHash}
                 git -C $localPath reset --soft HEAD~1        
             }
 
-            if ("y" -eq (Query-Yn "Do the copied files look good?")) {
-                # And run the post processor.
-                # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
-                docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
-                    gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
-                git -C $localPath add -A
-                git -C $localPath commit -m "chore: run the post processor"
-                $commitCount += 1
+            # And run the post processor.
+            # TODO(rennie): change the docker image to repo-automation-bots when it's fixed.
+            docker run --user "$(id -u):$(id -g)" --rm -v "${localPath}:/repo" -w /repo `
+                gcr.io/cloud-devrel-kokoro-resources/owlbot-nodejs:latest
+            git -C $localPath add -A
+            git -C $localPath commit -m "chore: run the post processor"
+            $commitCount += 1
 
-                # Push the result to github and ask the user to look at it.
-                pushd .
-                try {
-                    cd $localPath
-                    git push -f origin owl-bot
-                    $repoName = Split-Path -Leaf $localPath
-                    echo "Create a pull request from here: https://github.com/googleapis/${repoName}/tree/owl-bot"
-                } finally {
-                    popd
-                }
+            # Push the result to github and ask the user to look at it.
+            pushd .
+            try {
+                cd $localPath
+                git push -f origin owl-bot
+                $repoName = Split-Path -Leaf $localPath
+                echo "Create a pull request from here: https://github.com/googleapis/${repoName}/compare/owl-bot?expand=1"
+            } finally {
+                popd
+            }
 
-                $choice = Query-Options "Should I`n(m)ark this repo as complete`n(r)etry this repo`n(s)kip to the next repo`n" 'm','r','s'
-                if ('m' -eq $choice) {
-                    $cleanExit = $true
-                    return
-                } elseif ('s' -eq $choice) {
-                    Rollback
-                    return
-                } else {  # Retry
-                    Rollback
-                }
-            } else {
+            $choice = Query-Options "Should I`n(m)ark this repo as complete`n(r)etry this repo`n(s)kip to the next repo`n" 'm','r','s'
+            if ('m' -eq $choice) {
+                $cleanExit = $true
+                return
+            } elseif ('s' -eq $choice) {
+                Rollback
+                return
+            } else {  # Retry
                 Rollback
             }
         }
