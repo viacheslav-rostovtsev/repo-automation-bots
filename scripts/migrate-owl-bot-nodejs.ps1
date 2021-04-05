@@ -52,7 +52,7 @@ function Get-GoogleapisCommitHashFromSynthMetadata($metadataPath) {
     if (Test-Path $metadataPath) {
         $metadata = Get-Content $metadataPath | ConvertFrom-Json -AsHashTable
         foreach ($source in $metadata["sources"]) {
-            if ($source["git"]["name"] -eq "googleapis") {
+            if ($source -and $source["git"] -and ($source["git"]["name"] -eq "googleapis")) {
                 return $source["git"]["sha"]
             }
         }
