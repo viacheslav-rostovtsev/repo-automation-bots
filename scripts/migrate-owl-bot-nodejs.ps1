@@ -1,6 +1,19 @@
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 param (
-    [string]$workDir,
+    [string]$workDir
 )
 
 function New-TemporaryDirectory {
@@ -8,12 +21,6 @@ function New-TemporaryDirectory {
     [string] $name = [System.Guid]::NewGuid()
     New-Item -ItemType Directory -Path (Join-Path $parent $name)
 }
-
-if (!$workDir) {
-    $workDir = New-TemporaryDirectory
-}
-
-Write-Host -ForegroundColor Blue "Working in $workDir"
 
 # If the repo already exists in the temporary directory, just run "git pull".
 # Otherwise, clone it into the temporary directory.
@@ -163,7 +170,6 @@ begin-after-commit-hash: ${sourceCommitHash}
             $commitCount += 1
 
             function Rollback {
-                echo "Trying again..."
                 git -C $localPath reset --hard "HEAD~$($commitCount - 1)"
                 git -C $localPath reset --soft HEAD~1        
             }
@@ -189,47 +195,59 @@ begin-after-commit-hash: ${sourceCommitHash}
 
             $choice = Query-Options "Should I`n(m)ark this repo as complete`n(r)etry this repo`n(s)kip to the next repo`n" 'm','r','s'
             if ('m' -eq $choice) {
+                echo "Marked complete."
                 $cleanExit = $true
                 return
             } elseif ('s' -eq $choice) {
+                echo "Skipping..."
                 Rollback
                 return
             } else {  # Retry
+                echo "Trying again..."
                 Rollback
             }
         }
     } finally {
         if (-not $cleanExit) {
             # Remove these yaml files so we'll start again with this repo
-            Remove-Item $yamlPath,$lockPath
+            Remove-Item -Force $yamlPath,$lockPath
         }
 
     }
 }
 
-pushd
-try {
-    # Clone googleapis-gen and get its most recent commit hash.
-    cd $workDir
-    $sourceRepoPath = CloneOrPull-Repo googleapis/googleapis-gen
-    $currentHash = git -C googleapis-gen log -1 --format=%H
 
-    # Get the list of repos from github.
-    $allRepos = gh repo list googleapis --limit 1000
-    $matchInfos = $allRepos | Select-String -Pattern "^googleapis/${lang}-[^ \r\n\t]+"
-    $repos = $matchInfos.matches.value
-
-    foreach ($repo in $repos) {
-        $name = CloneOrPull-Repo $repo
-        $owlBotPath = "$name/.github/.OwlBot.yaml"
-        if (Test-Path $owlBotPath) {
-            Write-Host -ForegroundColor Blue "Skipping $name;  Found $owlBotPath."
-        } else {
-            Write-Host -ForegroundColor Blue "Migrating $name..."
-            Migrate-Repo $name $sourceRepoPath
+function Migrate-All([string]$lang, $workDir) {
+    pushd .
+    try {
+        if (!$workDir) {
+            $workDir = New-TemporaryDirectory
         }
-    }
+        Write-Host -ForegroundColor Blue "Working in $workDir"
+        # Clone googleapis-gen and get its most recent commit hash.        
+        cd $workDir
+        $sourceRepoPath = CloneOrPull-Repo googleapis/googleapis-gen
+        $currentHash = git -C googleapis-gen log -1 --format=%H
 
-} finally {
-    popd
+        # Get the list of repos from github.
+        $allRepos = gh repo list googleapis --limit 1000
+        $matchInfos = $allRepos | Select-String -Pattern "^googleapis/${lang}-[^ \r\n\t]+"
+        $repos = $matchInfos.matches.value
+
+        foreach ($repo in $repos) {
+            $name = CloneOrPull-Repo $repo
+            $owlBotPath = "$name/.github/.OwlBot.yaml"
+            if (Test-Path $owlBotPath) {
+                Write-Host -ForegroundColor Blue "Skipping $name;  Found $owlBotPath."
+            } else {
+                Write-Host -ForegroundColor Blue "Migrating $name..."
+                Migrate-Repo $name $sourceRepoPath
+            }
+        }
+
+    } finally {
+        popd
+    }
 }
+
+Migrate-All nodejs $workDir
