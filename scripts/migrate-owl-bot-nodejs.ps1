@@ -1,9 +1,7 @@
 
 param (
     [string]$workDir,
-    [string]$lang = "nodejs"
 )
-
 
 function New-TemporaryDirectory {
     $parent = [System.IO.Path]::GetTempPath()
@@ -79,9 +77,11 @@ function Get-SourceCommitHash([string]$localPath, [string]$sourceRepoPath) {
 }
 
 function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
-    # Ask the user to look at sytnh.py and provide the details we need.
+    # Ask the user to look at synth.py and provide the details we need.
+    $yamlPath = "$localPath/.github/.OwlBot.yaml"
     cat "$localPath/synth.py"
     if ('n' -eq (Query-Yn "Wanna migrate?")) {
+        echo $null >> $yamlPath  # So we don't ask the user again.
         return
     }
     $dv = Read-Host "What's the default version?"
@@ -100,7 +100,6 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     $metadata | ConvertTo-Json | Out-File $metadataPath -Encoding UTF8
 
     # Write Owlbot config files.
-    $yamlPath = "$localPath/.github/.OwlBot.yaml"
     $lockPath = "$localPath/.github/.OwlBot.lock.yaml"
     $yaml = "# Copyright 2021 Google LLC
 #
