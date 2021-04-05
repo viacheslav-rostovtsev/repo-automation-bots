@@ -95,7 +95,6 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
         }
         return
     }
-    $dv = Read-Host "What's the default version?"
     $apiPath = Read-Host "What's the API path in googleapis-gen?"
 
     $sourceCommitHash = Get-SourceCommitHash $localPath $sourceRepoPath
@@ -119,22 +118,16 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 docker:
   image: gcr.io/repo-automation-bots/owlbot-python:latest
 
-deep-preserve-regex:
-  - /nox.py
-  - /setup.py
-  - /README.rst
-  - /docs/index.rst
-  - /docs/README.rst
-  - /docs/changelog.md
+deep-remove-regex:
+  - /owl-bot-staging
 
 deep-copy-regex:
   - source: /${apiPath}/(v.*)/.*-py/(.*)
-    dest: /`$2
-  - source: /${apiPath}/(${dv})/.*-py/(.*)
-    dest: /`$2
+    dest: /owl-bot-staging/`$1/`$2
 
 begin-after-commit-hash: ${sourceCommitHash}
 "
@@ -151,8 +144,9 @@ begin-after-commit-hash: ${sourceCommitHash}
 
         # Remove obsolete files.
         Remove-Item "${localPath}/synth.metadata"
+        Rename-Item "${localPath}/synth.py" "${localPath}/owlbot.py"
         while ($true) {
-            echo "Edit ${yamlPath} and edit or remove ${localPath}/synth.py before I commit changes."
+            echo "Edit ${yamlPath} and ${localPath}/owlbot.py before I commit changes."
             code -n -w $localPath
 
             $commitCount = 0
