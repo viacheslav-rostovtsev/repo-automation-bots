@@ -9,6 +9,11 @@ Owl Bot.
 
 2.  Install [powershell](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.1).
 
+3.  Install [docker](https://docs.docker.com/get-docker/).
+
+4.  Install [Visual Studio Code](https://code.visualstudio.com/).  Make sure
+    `code --version` displays something useful at the command line.
+
 ## Running
 
 First time, run the script like this:
