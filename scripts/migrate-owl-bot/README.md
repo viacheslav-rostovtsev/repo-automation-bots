@@ -5,7 +5,7 @@ Owl Bot.
 
 ## Prerequisites
 
-1.  Install and sign in to the [github cli](https://cli.github.com/).
+1.  Install the [github cli](https://cli.github.com/) and sign in.
 
 2.  Install [powershell](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.1).
 
@@ -13,6 +13,16 @@ Owl Bot.
 
 4.  Install [Visual Studio Code](https://code.visualstudio.com/).  Make sure
     `code --version` displays something useful at the command line.
+
+5.  Install [gcloud](https://cloud.google.com/sdk/gcloud) and sign in.
+
+6.  [Configure docker](https://cloud.google.com/sdk/gcloud/reference/auth/configure-docker) to use your gcloud credentials:
+
+    ```
+    gcloud auth configure-docker
+    ```
+
+    
 
 ## Running
 
