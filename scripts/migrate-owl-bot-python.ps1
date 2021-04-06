@@ -134,7 +134,7 @@ begin-after-commit-hash: ${sourceCommitHash}
     $yaml | Out-File $yamlPath -Encoding UTF8
 
     $lock = "docker:
-  digest: sha256:b317576c0e66d348ab6c1ae50dc43405df37f957b58433c988c1e9ca257ba3d4
+  digest: sha256:56133a8648855cccff1389e56a8e7e22168f9ebde70c27b77c0c3ec6d15d90bb
   image: gcr.io/repo-automation-bots/owlbot-python:latest  
 "
     $lock | Out-File $lockPath -Encoding UTF8
