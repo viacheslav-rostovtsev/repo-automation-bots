@@ -88,11 +88,8 @@ function Migrate-Repo([string]$localPath, [string]$sourceRepoPath) {
     $yamlPath = "$localPath/.github/.OwlBot.yaml"
     cat "$localPath/synth.py"
     if ('n' -eq (Query-Yn "Wanna migrate?")) {
-        try {
-            echo $null >> $yamlPath  # So we don't ask the user again.
-        } catch {
-            # Ignore it.
-        }
+        mkdir -p $localPath/.github
+        touch $yamlPath  # So we don't ask the user again.
         return
     }
     $apiPath = Read-Host "What's the API path in googleapis-gen?"
